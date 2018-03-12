@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:json="http://www.mulesoft.org/schema/mule/json" xmlns:dw="http://www.mulesoft.org/schema/mule/ee/dw" xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:spring="http://www.springframework.org/schema/beans" 
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-current.xsd
+http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/ee/dw http://www.mulesoft.org/schema/mule/ee/dw/current/dw.xsd
+http://www.mulesoft.org/schema/mule/json http://www.mulesoft.org/schema/mule/json/current/mule-json.xsd">
+    <http:listener-config name="HTTP_Listener_Configuration" host="0.0.0.0" port="8081" doc:name="HTTP Listener Configuration"/>
+    <http:request-config name="HTTP_Request_Configuration" host="localhost" port="8080" basePath="/kie-server/services/rest/server/containers/instances" connectionIdleTimeout="300000" responseTimeout="300000" doc:name="HTTP Request Configuration">
+        <http:basic-authentication username="kieserver" password="kieserver1!"/>
+    </http:request-config>
+    <flow name="drool-rest-consumeFlow">
+        <http:listener config-ref="HTTP_Listener_Configuration" path="/drool" doc:name="HTTP"/>
+        <set-session-variable variableName="rule" value="#[message.inboundProperties.'http.query.params'.rule]" doc:name="Session Variable"/>
+        <dw:transform-message doc:name="Transform Message">
+            <dw:set-payload><![CDATA[%dw 1.0
+%output application/java
+---
+{
+	"commands": [
+ 	{ 
+		"insert": { 
+ 			"object": {
+	        	"demo.lab.data_bus": {
+		            "d1":sessionVars.rule as :string
+	        	}
+        	},
+        	"out-identifier": "fire",
+        	"entry-point": "DEFAULT"
+    	} 
+ 	},
+	{ 
+		"fire-all-rules": { 
+		
+		} 
+	}
+
+ ]
+}]]></dw:set-payload>
+        </dw:transform-message>
+
+        <logger message="#[flowVars.input]" level="INFO" doc:name="Logger"/>
+        <json:object-to-json-transformer mimeType="application/json" doc:name="Object to JSON"/>
+
+        <http:request config-ref="HTTP_Request_Configuration" path="/container10" method="POST" doc:name="HTTP">
+            <http:request-builder>
+                <http:header headerName="Content-Type" value="application/json"/>
+
+            </http:request-builder>
+        </http:request>
+        <logger message="#[payload]" level="INFO" doc:name="Logger"/>
+        <set-payload value="#[json:result/execution-results/results[0]/value/demo.lab.data_bus/d2]" mimeType="application/json" doc:name="Set Payload"/>
+    </flow>
+</mule>
